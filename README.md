@@ -8,9 +8,9 @@
 > 后端仓库地址：https://github.com/yitian-chen/LeaseGo
 
 ## 目录结构
-LeaseGo-Frontend/
-├── leasego-admin/      后台管理端 (Vue 3)
-└── leasego-app/        用户移动端 (Vue 3)
+LeaseGo-Frontend/  
+   ├── leasego-admin/      后台管理端 (Vue 3)  
+   └── leasego-app/        用户移动端 (Vue 3)  
 
 ## 快速开始
 
