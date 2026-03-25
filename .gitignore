@@ -1,0 +1,9 @@
+.idea
+leasego-admin/node_modules
+leasego-admin/.idea
+leasego-admin/.husky
+leasego-admin/dist
+
+leasego-app/.idea
+leasego-app/.husky
+leasego-app/dist
