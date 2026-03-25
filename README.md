@@ -9,13 +9,13 @@
 
 ## 目录结构
 LeaseGo-Frontend/  
-   ├── leasego-admin/      后台管理端 (Vue 3)  
-   └── leasego-app/        用户移动端 (Vue 3)  
+   ├── leasego-admin/      后台管理端  
+   └── leasego-app/        用户移动端 
 
 ## 快速开始
 
 1. 环境准备  
-   确保本地安装了 Node.js 18.0 或更高版本。建议使用 pnpm 作为包管理工具。
+   确保本地安装了 Node.js 18.0 或更高版本。建议使用 npm 作为包管理工具。
 
 2. 安装依赖  
    在根目录下为所有子项目安装依赖：
@@ -25,7 +25,7 @@ LeaseGo-Frontend/
    或者分别进入子目录执行 npm install。
 
 3. 配置接口地址  
-   在各子项目的 .env.development 文件中，将 VITE_SERVER_URL 修改为后端的运行地址，默认为 http://localhost:8080。
+   在各子项目的 .env.development 文件中，将 VITE_SERVER_URL 修改为后端的运行地址，默认为 http://localhost:8080
 
 4. 本地运行  
    运行后台管理系统：
