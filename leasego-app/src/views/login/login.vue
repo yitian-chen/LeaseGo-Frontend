@@ -17,6 +17,7 @@
             name="phone"
             required
             type="tel"
+            maxlength="11"
             autocomplete="off"
             placeholder="请输入手机号"
             :rules="[
@@ -84,7 +85,6 @@
           />
 
           <van-field
-            v-if="activeTab === 'pwd'"
             v-model.trim="loginInfo.captchaCode"
             name="captchaCode"
             placeholder="请输入图形验证码"
@@ -131,9 +131,10 @@ const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 
-// 登录类型：sms 或 pwd
+// 登录类型：sms(短信登录) 或 pwd(密码登录)
 const activeTab = ref("sms");
 
+// 绑定的表单数据
 const loginInfo = ref({
   phone: "13888888888",
   code: "1234",
@@ -147,13 +148,13 @@ const codeSendStatus = ref(false);
 const countDown = ref(60 * 1000);
 const countDownRef = ref<CountDownInstance>();
 
-// 图形验证码相关
+// 图形验证码图片 Base64
 const captchaImg = ref("");
 
+// 获取/刷新图形验证码
 const loadCaptcha = async () => {
   try {
     const res = await getCaptcha();
-    // 假设后端返回的数据在 res.data 中，包含 image 和 key
     captchaImg.value = res.data.image;
     loginInfo.value.captchaKey = res.data.key;
   } catch (error) {
@@ -173,25 +174,35 @@ const countDownFinishHandle = () => {
   countDownResetHandle();
 };
 
+// 获取短信验证码
 const getCodeHandle = async () => {
   await formRef.value?.validate("phone");
   countDownStartHandle();
   getSmsCode({ phone: loginInfo.value.phone });
 };
 
+// 点击登录提交
 const onSubmitHandle = async () => {
+  // 1. 触发表单校验
   await formRef.value?.validate();
 
-  // 组装提交数据
-  const payload: any = { phone: loginInfo.value.phone };
+  // 2. 组装公共的提交数据 (手机号、图形验证码值、图形验证码的key)
+  const payload: any = {
+    phone: loginInfo.value.phone,
+    captchaCode: loginInfo.value.captchaCode,
+    captchaKey: loginInfo.value.captchaKey
+  };
+
+  // 3. 根据所处的 Tab 附带特定参数和 strategy
   if (activeTab.value === "sms") {
     payload.code = loginInfo.value.code;
+    payload.strategy = 1; // 1：代表短信登录
   } else {
     payload.password = loginInfo.value.password;
-    payload.captchaCode = loginInfo.value.captchaCode;
-    payload.captchaKey = loginInfo.value.captchaKey;
+    payload.strategy = 2; // 2：代表密码登录
   }
 
+  // 4. 调用 Pinia action 发起请求并跳转
   await userStore.LoginAction(payload);
   await router.replace(
     route.query?.redirect
@@ -201,6 +212,8 @@ const onSubmitHandle = async () => {
 };
 
 onMounted(() => {
-  loadCaptcha(); // 初始化时加载一次图形验证码
+  loadCaptcha(); // 页面初始化加载一次图形验证码
 });
 </script>
+
+<style scoped lang="less"></style>

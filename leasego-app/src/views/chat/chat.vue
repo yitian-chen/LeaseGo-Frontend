@@ -4,7 +4,7 @@
 
     <div class="chat-box flex-1 overflow-y-auto p-4" ref="chatBoxRef">
       <div v-for="(msg, index) in messageList" :key="index" class="mb-4">
-        <div v-if="msg.system" class="text-center text-xs text-gray-400">
+        <div v-if="msg.system" class="text-center text-xs text-gray-500">
           {{ msg.message }}
         </div>
         <div v-else-if="msg.fromName !== currentUser" class="flex items-start">
