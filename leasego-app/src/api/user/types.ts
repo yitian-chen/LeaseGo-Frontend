@@ -25,3 +25,8 @@ export interface UserStateInterface {
   // token
   token: string | null;
 }
+
+export interface CaptchaVo {
+  image: string;
+  key: string;
+}

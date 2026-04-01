@@ -85,6 +85,13 @@ const navList = ref([
     path: "",
     color: "#f39653",
     badge: null
+  },
+  {
+    icon: "friends-o",
+    name: "聊天室",
+    path: "/chat",
+    color: "#1989fa",
+    badge: null
   }
 ]);
 </script>

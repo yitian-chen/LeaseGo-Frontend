@@ -4,9 +4,13 @@
       <van-image round width="30vw" height="30vw" :src="defaultAvatarUrl" />
     </div>
     <div>
+      <van-tabs v-model:active="activeTab" class="mb-4">
+        <van-tab title="短信登录" name="sms"></van-tab>
+        <van-tab title="密码登录" name="pwd"></van-tab>
+      </van-tabs>
+
       <van-form ref="formRef">
         <van-cell-group inset>
-          <!--            手机号-->
           <van-field
             v-model.trim="loginInfo.phone"
             border
@@ -25,9 +29,10 @@
           />
 
           <van-field
+            v-if="activeTab === 'sms'"
             v-model.trim="loginInfo.code"
             name="code"
-            placeholder="请输入验证码"
+            placeholder="请输入短信验证码"
             clearable
             type="digit"
             maxlength="4"
@@ -41,7 +46,12 @@
             ]"
           >
             <template #button>
-              <van-button @click="getCodeHandle" size="small" type="primary">
+              <van-button
+                @click="getCodeHandle"
+                size="small"
+                type="primary"
+                native-type="button"
+              >
                 <div class="flex justify-center items-center">
                   <span class="--van-gray-1">{{
                     codeSendStatus ? "已发送" : "发送验证码"
@@ -62,6 +72,35 @@
               </van-button>
             </template>
           </van-field>
+
+          <van-field
+            v-if="activeTab === 'pwd'"
+            v-model.trim="loginInfo.password"
+            name="password"
+            type="password"
+            placeholder="请输入密码"
+            required
+            :rules="[{ required: true, message: '请输入密码' }]"
+          />
+
+          <van-field
+            v-if="activeTab === 'pwd'"
+            v-model.trim="loginInfo.captchaCode"
+            name="captchaCode"
+            placeholder="请输入图形验证码"
+            required
+            :rules="[{ required: true, message: '请输入图形验证码' }]"
+          >
+            <template #button>
+              <van-image
+                width="80"
+                height="30"
+                :src="captchaImg"
+                @click="loadCaptcha"
+                alt="图形验证码"
+              />
+            </template>
+          </van-field>
         </van-cell-group>
         <div class="mt-[50px]">
           <loading-button
@@ -78,72 +117,90 @@
     </div>
   </div>
 </template>
+
 <script setup lang="ts">
 import defaultAvatarUrl from "../../../public/favicon.ico";
 import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { getSmsCode } from "@/api/user";
+import { getSmsCode, getCaptcha } from "@/api/user";
 import type { CountDownInstance, FormInstance } from "vant";
 import { useUserStore } from "@/store/modules/user";
 import LoadingButton from "@/components/LoadingButton/LoadingButton.vue";
+
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
-// 登录信息
+
+// 登录类型：sms 或 pwd
+const activeTab = ref("sms");
+
 const loginInfo = ref({
   phone: "13888888888",
-  code: "123456"
+  code: "1234",
+  password: "",
+  captchaCode: "",
+  captchaKey: ""
 });
-// 表单实例
+
 const formRef = ref<FormInstance>();
-// 验证码发送状态
 const codeSendStatus = ref(false);
-//#region <倒计时相关>
-// 倒计时
 const countDown = ref(60 * 1000);
 const countDownRef = ref<CountDownInstance>();
-// 倒计时开始
+
+// 图形验证码相关
+const captchaImg = ref("");
+
+const loadCaptcha = async () => {
+  try {
+    const res = await getCaptcha();
+    // 假设后端返回的数据在 res.data 中，包含 image 和 key
+    captchaImg.value = res.data.image;
+    loginInfo.value.captchaKey = res.data.key;
+  } catch (error) {
+    console.error("获取图形验证码失败", error);
+  }
+};
+
 const countDownStartHandle = () => {
   countDownRef.value?.start();
-  //   修改验证码发送状态
   codeSendStatus.value = true;
 };
-// 倒计时重置
 const countDownResetHandle = () => {
   countDownRef.value?.reset();
-  //   修改验证码发送状态
   codeSendStatus.value = false;
 };
-// 倒计时结束
 const countDownFinishHandle = () => {
   countDownResetHandle();
 };
-//#endregion
-// 获取验证码
+
 const getCodeHandle = async () => {
-  // 验证字段phone
   await formRef.value?.validate("phone");
-  // 开始倒计时
   countDownStartHandle();
   getSmsCode({ phone: loginInfo.value.phone });
 };
+
 const onSubmitHandle = async () => {
-  console.log("onSubmit");
-  // 验证字段
   await formRef.value?.validate();
-  // 登录
-  await userStore.LoginAction(loginInfo.value);
-  // 跳转首页
+
+  // 组装提交数据
+  const payload: any = { phone: loginInfo.value.phone };
+  if (activeTab.value === "sms") {
+    payload.code = loginInfo.value.code;
+  } else {
+    payload.password = loginInfo.value.password;
+    payload.captchaCode = loginInfo.value.captchaCode;
+    payload.captchaKey = loginInfo.value.captchaKey;
+  }
+
+  await userStore.LoginAction(payload);
   await router.replace(
     route.query?.redirect
       ? decodeURIComponent(route.query?.redirect as string)
       : "/"
   );
 };
+
 onMounted(() => {
-  console.log("route", route);
-  console.log("router-onMounted", router);
+  loadCaptcha(); // 初始化时加载一次图形验证码
 });
 </script>
-
-<style scoped lang="less"></style>

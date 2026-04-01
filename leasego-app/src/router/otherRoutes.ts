@@ -84,6 +84,15 @@ const routes: Array<RouteRecordRaw> = [
       title: "登录",
       noCache: true
     }
+  },
+  // 在你的路由数组中补充这一段
+  {
+    path: "/chat",
+    name: "Chat",
+    component: () => import("@/views/chat/chat.vue"),
+    meta: {
+      title: "公共聊天室"
+    }
   }
 ];
 
