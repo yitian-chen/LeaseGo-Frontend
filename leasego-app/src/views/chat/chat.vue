@@ -30,7 +30,7 @@
                 user.online ? 'bg-green-500' : 'bg-gray-300'
               ]"
             ></div>
-            <div class="flex-1 truncate text-sm">{{ user.id }}</div>
+            <div class="flex-1 truncate text-sm">{{ user.nickname }}</div>
           </div>
         </div>
       </div>
@@ -63,7 +63,7 @@
                 />
                 <div class="ml-2 max-w-[75%]">
                   <div class="text-[10px] text-gray-400 mb-1">
-                    {{ selectedUser }}
+                    {{ contactsMap[selectedUser]?.nickname || "对方" }}
                   </div>
                   <div
                     class="bg-white p-2 rounded-lg shadow-sm text-sm break-words border border-gray-100"
@@ -133,11 +133,10 @@ import { showToast } from "vant";
 const router = useRouter();
 const userStore = useUserStore();
 
-// ✨ 修复点 1：使用 computed 确保用户名修改后能自动感知
-// 注意：根据后端 LoginServiceImpl 逻辑，这里应使用手机号作为唯一标识过滤
-const currentUserIdentifier = computed(
-  () => userStore.userInfo?.nickname || "未知用户"
-);
+// ✅ 修改为：用 userId 当唯一标识
+const currentUserId = computed(() => userStore.userInfo?.id || null);
+// 同时保留当前昵称，以备不时之需
+const currentNickname = computed(() => userStore.userInfo?.nickname || "我");
 // 如果你的后端是用手机号过滤，请改为：userStore.userInfo?.phone (需确保接口返回了该字段)
 
 const showSidebar = ref(true);
@@ -145,19 +144,24 @@ const selectedUser = ref<string | null>(null);
 const inputText = ref("");
 const chatBoxRef = ref<HTMLElement | null>(null);
 
-// 存储结构：{ [userId]: { online: boolean, messages: [] } }
-const contactsMap = ref<Record<string, { online: boolean; messages: any[] }>>(
-  {}
-);
+// ✅ 修改为：Key 为对方的 userId (number 或 string)
+const contactsMap = ref<
+  Record<
+    string,
+    {
+      id: string;
+      nickname: string; // 🌟 新增：存储对方真实昵称
+      online: boolean;
+      messages: any[];
+    }
+  >
+>({});
 
-// 列表排序：在线的排前面
+// 修改计算属性：把昵称也带出去给模板用
 const allContacts = computed(() => {
-  return Object.keys(contactsMap.value)
-    .map(id => ({
-      id,
-      online: contactsMap.value[id].online
-    }))
-    .sort((a, b) => (a.online === b.online ? 0 : a.online ? -1 : 1));
+  return Object.values(contactsMap.value).sort((a, b) =>
+    a.online === b.online ? 0 : a.online ? -1 : 1
+  );
 });
 
 const currentMessages = computed(() => {
@@ -180,10 +184,10 @@ const initWebSocket = () => {
       const data = JSON.parse(event.data);
 
       // 1. 处理系统公告（在线用户列表）
+      // 后端现在返回的应该是：[{ userId: 1, nickname: "chen" }, ...]
       if (data.system) {
-        let onlineList: string[] = [];
+        let onlineList: any[] = [];
         try {
-          // 适配后端嵌套 JSON 字符串的特殊格式
           const inner =
             typeof data.message === "string" ? JSON.parse(data.message) : data;
           onlineList = inner.message || [];
@@ -191,41 +195,64 @@ const initWebSocket = () => {
           console.error("解析列表失败", e);
         }
 
-        // 更新所有用户的在线状态
-        onlineList.forEach(userId => {
-          // ✨ 修复点 2：过滤掉自己，不把自己放进列表
-          if (userId === currentUserIdentifier.value) return;
+        // ✨ 将在线列表转为一个只包含 userId 的数组，方便后续对比下线用户
+        const onlineIdList = onlineList.map(user =>
+          String(user.userId || user.id)
+        );
 
-          if (!contactsMap.value[userId]) {
-            contactsMap.value[userId] = { online: true, messages: [] };
+        onlineList.forEach(user => {
+          const uid = String(user.userId || user.id);
+          const uname = user.nickname || "未知用户";
+
+          // 🌟 过滤掉自己 (用 ID 过滤)
+          if (uid === String(currentUserId.value)) return;
+
+          if (!contactsMap.value[uid]) {
+            contactsMap.value[uid] = {
+              id: uid,
+              nickname: uname,
+              online: true,
+              messages: []
+            };
           } else {
-            contactsMap.value[userId].online = true;
+            contactsMap.value[uid].online = true;
+            // 如果对方改名了，同步更新列表里显示的名字
+            contactsMap.value[uid].nickname = uname;
           }
         });
 
         // 处理下线的用户
-        Object.keys(contactsMap.value).forEach(id => {
-          if (!onlineList.includes(id)) {
-            contactsMap.value[id].online = false;
+        Object.keys(contactsMap.value).forEach(uid => {
+          if (!onlineIdList.includes(uid)) {
+            contactsMap.value[uid].online = false;
           }
         });
       }
-      // 2. 处理聊天消息
+      // 2. 处理别人发来的聊天消息
+      // 后端现在返回：{ system: false, fromId: 1, fromName: "chen", message: "你好" }
       else {
-        const sender = data.fromName;
-        // ✨ 修复点 3：忽略来自自己的回传消息（因为发送时已本地添加）
-        if (sender === currentUserIdentifier.value) return;
+        const senderId = String(data.fromId);
+        const senderName = data.fromName || "未知用户";
 
-        if (!contactsMap.value[sender]) {
-          contactsMap.value[sender] = { online: true, messages: [] };
+        // 🌟 忽略自己发给自己的（虽然我们后端代码已经改了不发给自己，但前端加个保险没坏处）
+        if (senderId === String(currentUserId.value)) return;
+
+        // 如果收到一个陌生人（不在列表里）的消息，帮他建个档案
+        if (!contactsMap.value[senderId]) {
+          contactsMap.value[senderId] = {
+            id: senderId,
+            nickname: senderName,
+            online: true,
+            messages: []
+          };
         }
 
-        contactsMap.value[sender].messages.push({
+        contactsMap.value[senderId].messages.push({
           fromMe: false,
           text: data.message
         });
 
-        if (selectedUser.value === sender) scrollToBottom();
+        if (selectedUser.value === senderId) scrollToBottom();
       }
     } catch (e) {
       console.error("WS解析错误", e);
@@ -241,14 +268,14 @@ const selectUser = (userId: string) => {
 const sendMessage = () => {
   if (!inputText.value.trim() || !ws || !selectedUser.value) return;
 
+  // ✅ 修改为传递 toId
   const msgObj = {
-    toName: selectedUser.value,
+    toId: Number(selectedUser.value), // 根据后端类型，可能是要转成数字
     message: inputText.value
   };
 
   ws.send(JSON.stringify(msgObj));
 
-  // 本地追加记录
   contactsMap.value[selectedUser.value].messages.push({
     fromMe: true,
     text: inputText.value

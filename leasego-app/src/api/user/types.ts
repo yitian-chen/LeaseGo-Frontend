@@ -22,6 +22,7 @@ export interface SmsCodeQueryInterface {
 
 // 用户信息
 export interface UserInfoInterface {
+  id?: number;
   // 头像
   avatarUrl: string;
   // 用户名
