@@ -3,7 +3,8 @@ import type {
   loginQueryInterface,
   SmsCodeQueryInterface,
   UserInfoInterface,
-  CaptchaVo
+  CaptchaVo,
+  UpdateNicknameInterface
 } from "@/api/user/types";
 /**
  * @description 登录
@@ -33,4 +34,13 @@ export function getUserInfo() {
  */
 export function getCaptcha() {
   return http.get<CaptchaVo>(`/app/login/captcha`);
+}
+
+/**
+ * @description 修改用户昵称
+ * @param params
+ */
+export function updateNickname(params: UpdateNicknameInterface) {
+  // 强制将参数放在 URL 查询字符串中
+  return http.post(`/app/updateNickname?nickname=${params.nickname}`);
 }

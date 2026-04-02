@@ -12,10 +12,15 @@
       >
         <template v-slot:error>加载失败</template>
       </van-image>
-      <div class="mt-[8px] font-bold text-[16px]">
-        {{ userStore.userInfo?.nickname || "测试" }}
+      <div
+        class="mt-[8px] font-bold text-[16px] flex items-center cursor-pointer"
+        @click="openEditDialog"
+      >
+        <span>{{ userStore.userInfo?.nickname || "测试" }}</span>
+        <van-icon name="edit" class="ml-[4px]" />
       </div>
     </div>
+
     <div class="main-container flex justify-around mt-[30px]">
       <div
         v-for="item in navList"
@@ -28,21 +33,37 @@
       </div>
     </div>
     <div class="main-container flex justify-center mt-[150px]">
-      <!--      退出登录-->
       <van-button type="primary" class="w-[50vw]" @click="logoutHandle"
         >退出登录</van-button
       >
     </div>
+
+    <van-dialog
+      v-model:show="showEditName"
+      title="修改昵称"
+      show-cancel-button
+      @confirm="handleUpdateNickname"
+    >
+      <van-field
+        v-model="newNickname"
+        placeholder="请输入新昵称"
+        maxlength="20"
+        input-align="center"
+        clearable
+      />
+    </van-dialog>
   </div>
 </template>
+
 <script setup lang="ts" name="UserCenter">
 import { useUserStore } from "@/store/modules/user";
-import { showImagePreview } from "vant";
+// 新增引入 showToast, showSuccessToast 提示信息
+import { showImagePreview, showToast, showSuccessToast } from "vant";
 import defaultAvatarUrl from "../../../public/favicon.ico";
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+
 const router = useRouter();
-console.log("router.currentRoute.value.path", router);
 const navList = ref([
   {
     icon: "历史",
@@ -60,14 +81,42 @@ const navList = ref([
     path: "/myAgreement"
   }
 ]);
+
 const userStore = useUserStore();
+
+// 新增：控制弹窗和昵称输入的状态
+const showEditName = ref(false);
+const newNickname = ref("");
+
+// 新增：打开弹窗并赋初值
+const openEditDialog = () => {
+  newNickname.value = userStore.userInfo?.nickname || "";
+  showEditName.value = true;
+};
+
+// 新增：确认修改昵称的处理逻辑
+const handleUpdateNickname = async () => {
+  if (!newNickname.value.trim()) {
+    showToast("昵称不能为空");
+    return;
+  }
+  try {
+    await userStore.UpdateNicknameAction({
+      nickname: newNickname.value.trim()
+    });
+    showSuccessToast("修改成功");
+  } catch (error) {
+    console.error("修改昵称失败", error);
+  }
+};
+
 // 退出登陆
 const logoutHandle = () => {
   userStore.Logout();
   // 清空路由浏览历史记录
   router.replace("/");
 };
-console.log(userStore);
+
 onMounted(() => {
   userStore.GetInfoAction();
 });

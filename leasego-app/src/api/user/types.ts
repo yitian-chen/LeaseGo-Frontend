@@ -39,3 +39,8 @@ export interface CaptchaVo {
   image: string;
   key: string;
 }
+
+// 修改昵称参数接口 (新增)
+export interface UpdateNicknameInterface {
+  nickname: string;
+}
