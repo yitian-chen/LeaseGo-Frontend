@@ -25,8 +25,7 @@
             ]"
           >
             <span class="w-2 h-2 rounded-full bg-green-500 mr-2"></span>
-            <span v-if="user !== currentUserIdentifier">{{ user }}</span>
-            <span v-else>{{ user }} (我)</span>
+            <span>{{ user }}</span>
           </div>
           <div
             v-if="onlineUsers.length === 0"
@@ -149,25 +148,20 @@ import { showToast } from "vant";
 const router = useRouter();
 const userStore = useUserStore();
 
-// 后端目前基于什么字段作为名字这里就取什么，假设你的体系里使用的是手机号或者nickname
+// 严格按照你后端的逻辑，这里拿手机号作为标识
 const currentUserIdentifier = ref(userStore.userInfo?.nickname || "未知");
 
-// UI 相关状态
-const isSidebarOpen = ref(window.innerWidth >= 768); // PC端默认展开，移动端默认看情况
+const isSidebarOpen = ref(window.innerWidth >= 768);
 const chatBoxRef = ref<HTMLElement | null>(null);
 
-// 聊天相关状态
 const onlineUsers = ref<string[]>([]);
 const selectedUser = ref<string>("");
 const inputText = ref("");
 
-// 本地聊天记录状态：键为对方用户名，值为聊天数组
-// 格式如： { "18980111110": [ { fromMe: false, text: "你好" }, { fromMe: true, text: "在吗" } ] }
 const messagesRecord = ref<Record<string, { fromMe: boolean; text: string }[]>>(
   {}
 );
 
-// 当前选中用户的聊天记录（计算属性）
 const currentMessages = computed(() => {
   if (!selectedUser.value) return [];
   return messagesRecord.value[selectedUser.value] || [];
@@ -197,7 +191,6 @@ const initWebSocket = () => {
       // 1. 系统公告消息 (在线用户列表更新)
       if (data.system) {
         let userList: string[] = [];
-        // 处理特殊的嵌套 JSON 字符串格式: "{\"system\": true,\"fromName\": null,\"message\": [\"xxx\",\"yyy\"]}"
         if (typeof data.message === "string") {
           try {
             const innerData = JSON.parse(data.message);
@@ -208,27 +201,34 @@ const initWebSocket = () => {
         } else if (Array.isArray(data.message)) {
           userList = data.message;
         }
-        onlineUsers.value = userList;
+
+        // ✨ 修改点 1：过滤掉自己，不在列表显示
+        onlineUsers.value = userList.filter(
+          user => user !== currentUserIdentifier.value
+        );
       }
       // 2. 收到私发消息
       else if (data.system === false && data.fromName) {
         const sender = data.fromName;
-        // 如果该用户的聊天记录还不存在，先初始化数组
+
+        // ✨ 修改点 2：如果服务端把我们自己发出去的消息又广播/发回来了，直接丢弃
+        // 因为我们在 sendMessage 时已经把自己的消息 push 到页面上了
+        if (sender === currentUserIdentifier.value) {
+          return;
+        }
+
         if (!messagesRecord.value[sender]) {
           messagesRecord.value[sender] = [];
         }
 
-        // 推入新消息
         messagesRecord.value[sender].push({
           fromMe: false,
           text: data.message
         });
 
-        // 仅当当前正处于和他的聊天窗口时，才滚动到底部
         if (selectedUser.value === sender) {
           scrollToBottom();
         } else {
-          // 这里以后可以扩展：例如给对方名字旁边加个红点提示有未读消息
           showToast(`收到来自 ${sender} 的新消息`);
         }
       }
@@ -242,15 +242,9 @@ const initWebSocket = () => {
   };
 };
 
-// 选中某个在线用户进行聊天
 const selectUser = (user: string) => {
-  if (user === currentUserIdentifier.value) {
-    showToast("不能和自己聊天哦");
-    return;
-  }
   selectedUser.value = user;
 
-  // 初始化记录
   if (!messagesRecord.value[user]) {
     messagesRecord.value[user] = [];
   }
@@ -259,18 +253,15 @@ const selectUser = (user: string) => {
   scrollToBottom();
 };
 
-// 发送消息
 const sendMessage = () => {
   if (!inputText.value.trim() || !ws || !selectedUser.value) return;
 
-  // 严格按照要求的 JSON 格式
   const msgObj = {
     toName: selectedUser.value,
     message: inputText.value
   };
   ws.send(JSON.stringify(msgObj));
 
-  // 前端将自己发送的消息追加到对应的本地聊天记录中
   if (!messagesRecord.value[selectedUser.value]) {
     messagesRecord.value[selectedUser.value] = [];
   }
@@ -291,7 +282,6 @@ const scrollToBottom = () => {
   });
 };
 
-// 移动端体验优化：点击聊天区域时自动收起侧边栏
 const closeSidebarOnMobile = () => {
   if (window.innerWidth < 768 && isSidebarOpen.value) {
     isSidebarOpen.value = false;
