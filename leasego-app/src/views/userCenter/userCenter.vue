@@ -2,9 +2,7 @@
   <div class="user-container">
     <div class="user h-[30vh] flex flex-col justify-center items-center">
       <van-image
-        @click="
-          showImagePreview([userStore.userInfo?.avatarUrl || defaultAvatarUrl])
-        "
+        @click="previewAvatar"
         round
         width="30vw"
         height="30vw"
@@ -12,6 +10,16 @@
       >
         <template v-slot:error>加载失败</template>
       </van-image>
+      <van-button size="small" round class="mt-3" @click="triggerAvatarUpload">
+        更改头像
+      </van-button>
+      <input
+        type="file"
+        ref="avatarInputRef"
+        accept="image/jpeg,image/png,image/gif,image/webp"
+        class="hidden"
+        @change="handleAvatarChange"
+      />
       <div
         class="mt-[8px] font-bold text-[16px] flex items-center cursor-pointer"
         @click="openEditDialog"
@@ -57,11 +65,11 @@
 
 <script setup lang="ts" name="UserCenter">
 import { useUserStore } from "@/store/modules/user";
-// 新增引入 showToast, showSuccessToast 提示信息
-import { showImagePreview, showToast, showSuccessToast } from "vant";
+import { showToast, showSuccessToast, showLoadingToast, closeToast, showImagePreview } from "vant";
 import defaultAvatarUrl from "../../../public/favicon.ico";
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import { uploadAvatar, updateAvatar } from "@/api/user";
 
 const router = useRouter();
 const navList = ref([
@@ -87,6 +95,74 @@ const userStore = useUserStore();
 // 新增：控制弹窗和昵称输入的状态
 const showEditName = ref(false);
 const newNickname = ref("");
+
+// 头像上传相关
+const avatarInputRef = ref<HTMLInputElement | null>(null);
+
+// 触发头像选择
+const triggerAvatarUpload = () => {
+  avatarInputRef.value?.click();
+};
+
+// 预览头像
+const previewAvatar = () => {
+  showImagePreview([
+    userStore.userInfo?.avatarUrl || defaultAvatarUrl
+  ]);
+};
+
+// 处理头像选择
+const handleAvatarChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+
+  if (!file) return;
+
+  // 限制文件大小 5MB
+  if (file.size > 5 * 1024 * 1024) {
+    showToast("图片大小不能超过5MB");
+    return;
+  }
+
+  // 限制文件类型
+  if (!file.type.startsWith("image/")) {
+    showToast("请选择图片文件");
+    return;
+  }
+
+  try {
+    showLoadingToast({ message: "上传中...", forbidClick: true });
+
+    // 1. 上传文件获取 URL
+    const uploadRes = await uploadAvatar(file);
+    console.log("上传响应:", uploadRes);
+
+    // uploadRes 已经是 { code, message, data } 结构
+    if (uploadRes.code !== 200) {
+      closeToast();
+      showToast(uploadRes.message || "上传失败");
+      return;
+    }
+
+    const avatarUrl = uploadRes.data as string;
+
+    // 2. 更新头像
+    await updateAvatar(avatarUrl);
+
+    // 3. 更新本地用户信息
+    userStore.userInfo!.avatarUrl = avatarUrl;
+
+    closeToast();
+    showSuccessToast("头像更新成功");
+  } catch (error) {
+    closeToast();
+    console.error("头像上传失败", error);
+    showToast("头像上传失败");
+  }
+
+  // 清空 input 值，允许重复选择同一文件
+  target.value = "";
+};
 
 // 新增：打开弹窗并赋初值
 const openEditDialog = () => {

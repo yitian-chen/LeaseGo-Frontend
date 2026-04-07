@@ -1,4 +1,5 @@
 import http from "@/utils/http";
+import { service } from "@/utils/http";
 import type {
   loginQueryInterface,
   SmsCodeQueryInterface,
@@ -43,4 +44,32 @@ export function getCaptcha() {
 export function updateNickname(params: UpdateNicknameInterface) {
   // 强制将参数放在 URL 查询字符串中
   return http.post(`/app/updateNickname?nickname=${params.nickname}`);
+}
+
+/**
+ * @description 上传头像文件
+ * @param file 图片文件
+ */
+export function uploadAvatar(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return service.post<string>(`/app/file/upload`, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data"
+    }
+  });
+}
+
+/**
+ * @description 更新头像URL
+ * @param url 头像URL
+ */
+export function updateAvatar(url: string) {
+  const formData = new URLSearchParams();
+  formData.append("url", url);
+  return service.post(`/app/user/avatar`, formData.toString(), {
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    }
+  });
 }
