@@ -1,7 +1,7 @@
 <template>
   <div class="chat-container flex flex-col h-[100vh] bg-gray-100 relative">
     <!-- 版本水印 -->
-    <div class="version-watermark">v1.0.7</div>
+    <div class="version-watermark">v1.1.1</div>
     <van-nav-bar title="LeaseGo 私聊" left-arrow @click-left="router.back()" />
 
     <div class="flex flex-1 overflow-hidden relative">
@@ -203,34 +203,14 @@ const initWebSocket = () => {
 
   // 后端可从 token 解析用户身份，不需要额外传 userId
   const wsUrl = `ws://localhost:8081/app/chat?token=${token}`;
-  console.log('[Chat] 正在连接 WebSocket:', wsUrl);
   ws = new WebSocket(wsUrl);
-
-  ws.onopen = () => {
-    console.log('[Chat] WebSocket 连接成功');
-  };
 
   ws.onmessage = event => {
     try {
-      console.log('[Chat] 原始 event.data:', event.data, '类型:', typeof event.data);
-      let data = event.data;
-      // 如果是字符串则解析
-      if (typeof data === 'string') {
-        const parsed = JSON.parse(data);
-        console.log('[Chat] JSON.parse 第一次结果:', parsed, '类型:', typeof parsed);
-        // 如果解析后仍是字符串（双重JSON），再解析一次
-        if (typeof parsed === 'string') {
-          data = JSON.parse(parsed);
-        } else {
-          data = parsed;
-        }
-      }
-      console.log('[Chat] data 最终结果:', data, '类型:', typeof data);
+      const data = JSON.parse(event.data);
 
       // 1. 处理系统消息（在线用户列表）
-      // 强制检查 data 是对象且 system 为 true
-      if (typeof data === 'object' && data !== null && data.system === true) {
-        console.log('[Chat] 系统消息 - 在线用户列表:', JSON.stringify(data.message));
+      if (data.system) {
         const onlineList: any[] = data.message || [];
 
         // 提取所有的 userId，方便后面剔除下线人员
@@ -239,13 +219,9 @@ const initWebSocket = () => {
         onlineList.forEach(user => {
           const uid = String(user.userId);
           const uname = user.nickname || "未知用户";
-          console.log(`[Chat] 处理用户: uid=${uid}, nickname=${uname}, currentUserId=${currentUserId.value}`);
 
           // 过滤掉自己
-          if (uid === String(currentUserId.value)) {
-            console.log('[Chat] 过滤掉自己');
-            return;
-          }
+          if (uid === String(currentUserId.value)) return;
 
           if (!contactsMap.value[uid]) {
             contactsMap.value[uid] = {
@@ -270,8 +246,6 @@ const initWebSocket = () => {
       }
       // 2. 处理私聊消息
       else {
-        console.log('[Chat] 私聊消息:', JSON.stringify(data));
-        // ✨ 享受后端改造成果：直接读取确切的发送者 ID 和 昵称
         const senderId = String(data.fromId);
         const senderName = data.fromName || "未知用户";
 
