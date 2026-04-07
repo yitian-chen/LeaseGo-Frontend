@@ -26,7 +26,8 @@ export interface UserInfoInterface {
   // 头像
   avatarUrl: string;
   // 用户名
-  nickname: string;
+  nickname?: string;
+  phone?: string;
 }
 // 用户state
 export interface UserStateInterface {

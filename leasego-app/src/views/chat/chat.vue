@@ -1,5 +1,7 @@
 <template>
-  <div class="chat-container flex flex-col h-[100vh] bg-gray-100">
+  <div class="chat-container flex flex-col h-[100vh] bg-gray-100 relative">
+    <!-- 版本水印 -->
+    <div class="version-watermark">v1.0.7</div>
     <van-nav-bar title="LeaseGo 私聊" left-arrow @click-left="router.back()" />
 
     <div class="flex flex-1 overflow-hidden relative">
@@ -26,7 +28,7 @@
           >
             <div
               :class="[
-                'w-2 h-2 rounded-full',
+                'w-2 h-2 rounded-full flex-shrink-0',
                 user.online ? 'bg-green-500' : 'bg-gray-300'
               ]"
             ></div>
@@ -97,7 +99,7 @@
             <van-field
               v-model="inputText"
               placeholder="请输入消息..."
-              class="flex-1 bg-gray-100 rounded-full"
+              class="flex-1 bg-gray-100 rounded-full px-4"
               :border="false"
               @keyup.enter="sendMessage"
             />
@@ -133,31 +135,45 @@ import { showToast } from "vant";
 const router = useRouter();
 const userStore = useUserStore();
 
-// ✅ 修改为：用 userId 当唯一标识
-const currentUserId = computed(() => userStore.userInfo?.id || null);
-// 同时保留当前昵称，以备不时之需
-const currentNickname = computed(() => userStore.userInfo?.nickname || "我");
-// 如果你的后端是用手机号过滤，请改为：userStore.userInfo?.phone (需确保接口返回了该字段)
+// ✅ 强转 any 绕过 TS 检查，获取当前用户真实 ID（不再报红）
+// 如果 userInfo.id 不可用，则从 token 解码获取
+const currentUserId = computed(() => {
+  const fromInfo = (userStore.userInfo as any)?.id;
+  if (fromInfo) return fromInfo;
+
+  // Fallback: 从 JWT token 解码 userId
+  const token = userStore.token;
+  if (token) {
+    try {
+      const payload = token.split('.')[1];
+      const decoded = JSON.parse(atob(payload));
+      return decoded.userId || null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+});
 
 const showSidebar = ref(true);
 const selectedUser = ref<string | null>(null);
 const inputText = ref("");
 const chatBoxRef = ref<HTMLElement | null>(null);
 
-// ✅ 修改为：Key 为对方的 userId (number 或 string)
+// ✅ Key 统一为对方的 userId 字符串
 const contactsMap = ref<
   Record<
     string,
     {
       id: string;
-      nickname: string; // 🌟 新增：存储对方真实昵称
+      nickname: string;
       online: boolean;
       messages: any[];
     }
   >
 >({});
 
-// 修改计算属性：把昵称也带出去给模板用
+// ✅ 删除了多余的重复声明，唯一正确的排序逻辑：在线的排前面
 const allContacts = computed(() => {
   return Object.values(contactsMap.value).sort((a, b) =>
     a.online === b.online ? 0 : a.online ? -1 : 1
@@ -171,41 +187,65 @@ const currentMessages = computed(() => {
 });
 
 let ws: WebSocket | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
 const initWebSocket = () => {
   const token = userStore.token;
-  if (!token) return;
+  if (!token) {
+    showToast("未获取到登录信息");
+    return;
+  }
 
+  // 如果已有连接，先关闭
+  if (ws) {
+    ws.close();
+  }
+
+  // 后端可从 token 解析用户身份，不需要额外传 userId
   const wsUrl = `ws://localhost:8081/app/chat?token=${token}`;
+  console.log('[Chat] 正在连接 WebSocket:', wsUrl);
   ws = new WebSocket(wsUrl);
+
+  ws.onopen = () => {
+    console.log('[Chat] WebSocket 连接成功');
+  };
 
   ws.onmessage = event => {
     try {
-      const data = JSON.parse(event.data);
-
-      // 1. 处理系统公告（在线用户列表）
-      // 后端现在返回的应该是：[{ userId: 1, nickname: "chen" }, ...]
-      if (data.system) {
-        let onlineList: any[] = [];
-        try {
-          const inner =
-            typeof data.message === "string" ? JSON.parse(data.message) : data;
-          onlineList = inner.message || [];
-        } catch (e) {
-          console.error("解析列表失败", e);
+      console.log('[Chat] 原始 event.data:', event.data, '类型:', typeof event.data);
+      let data = event.data;
+      // 如果是字符串则解析
+      if (typeof data === 'string') {
+        const parsed = JSON.parse(data);
+        console.log('[Chat] JSON.parse 第一次结果:', parsed, '类型:', typeof parsed);
+        // 如果解析后仍是字符串（双重JSON），再解析一次
+        if (typeof parsed === 'string') {
+          data = JSON.parse(parsed);
+        } else {
+          data = parsed;
         }
+      }
+      console.log('[Chat] data 最终结果:', data, '类型:', typeof data);
 
-        // ✨ 将在线列表转为一个只包含 userId 的数组，方便后续对比下线用户
-        const onlineIdList = onlineList.map(user =>
-          String(user.userId || user.id)
-        );
+      // 1. 处理系统消息（在线用户列表）
+      // 强制检查 data 是对象且 system 为 true
+      if (typeof data === 'object' && data !== null && data.system === true) {
+        console.log('[Chat] 系统消息 - 在线用户列表:', JSON.stringify(data.message));
+        const onlineList: any[] = data.message || [];
+
+        // 提取所有的 userId，方便后面剔除下线人员
+        const onlineIdList = onlineList.map(user => String(user.userId));
 
         onlineList.forEach(user => {
-          const uid = String(user.userId || user.id);
+          const uid = String(user.userId);
           const uname = user.nickname || "未知用户";
+          console.log(`[Chat] 处理用户: uid=${uid}, nickname=${uname}, currentUserId=${currentUserId.value}`);
 
-          // 🌟 过滤掉自己 (用 ID 过滤)
-          if (uid === String(currentUserId.value)) return;
+          // 过滤掉自己
+          if (uid === String(currentUserId.value)) {
+            console.log('[Chat] 过滤掉自己');
+            return;
+          }
 
           if (!contactsMap.value[uid]) {
             contactsMap.value[uid] = {
@@ -216,28 +256,29 @@ const initWebSocket = () => {
             };
           } else {
             contactsMap.value[uid].online = true;
-            // 如果对方改名了，同步更新列表里显示的名字
+            // 实时同步后端传来的最新昵称
             contactsMap.value[uid].nickname = uname;
           }
         });
 
-        // 处理下线的用户
+        // 将不在后端列表里的联系人标记为离线
         Object.keys(contactsMap.value).forEach(uid => {
           if (!onlineIdList.includes(uid)) {
             contactsMap.value[uid].online = false;
           }
         });
       }
-      // 2. 处理别人发来的聊天消息
-      // 后端现在返回：{ system: false, fromId: 1, fromName: "chen", message: "你好" }
+      // 2. 处理私聊消息
       else {
+        console.log('[Chat] 私聊消息:', JSON.stringify(data));
+        // ✨ 享受后端改造成果：直接读取确切的发送者 ID 和 昵称
         const senderId = String(data.fromId);
         const senderName = data.fromName || "未知用户";
 
-        // 🌟 忽略自己发给自己的（虽然我们后端代码已经改了不发给自己，但前端加个保险没坏处）
+        // 忽略自己发给自己的消息回传（我们本地在 sendMessage 时已经推过一次气泡了，避免双重气泡）
         if (senderId === String(currentUserId.value)) return;
 
-        // 如果收到一个陌生人（不在列表里）的消息，帮他建个档案
+        // 如果是陌生人发消息，自动帮他在侧边栏列表里建档
         if (!contactsMap.value[senderId]) {
           contactsMap.value[senderId] = {
             id: senderId,
@@ -252,11 +293,16 @@ const initWebSocket = () => {
           text: data.message
         });
 
+        // 只有当你正处于和他的聊天界面时，才滚动到底部
         if (selectedUser.value === senderId) scrollToBottom();
       }
     } catch (e) {
       console.error("WS解析错误", e);
     }
+  };
+
+  ws.onerror = () => {
+    showToast("聊天室连接异常");
   };
 };
 
@@ -268,14 +314,15 @@ const selectUser = (userId: string) => {
 const sendMessage = () => {
   if (!inputText.value.trim() || !ws || !selectedUser.value) return;
 
-  // ✅ 修改为传递 toId
+  // ✅ 核心修改：使用 toId 替代 toName 发给后端
   const msgObj = {
-    toId: Number(selectedUser.value), // 根据后端类型，可能是要转成数字
+    toId: Number(selectedUser.value),
     message: inputText.value
   };
 
   ws.send(JSON.stringify(msgObj));
 
+  // 本地推入聊天气泡
   contactsMap.value[selectedUser.value].messages.push({
     fromMe: true,
     text: inputText.value
@@ -287,11 +334,41 @@ const sendMessage = () => {
 
 const scrollToBottom = () => {
   nextTick(() => {
-    if (chatBoxRef.value)
+    if (chatBoxRef.value) {
       chatBoxRef.value.scrollTop = chatBoxRef.value.scrollHeight;
+    }
   });
 };
 
 onMounted(() => initWebSocket());
-onUnmounted(() => ws?.close());
+onUnmounted(() => {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+  }
+  if (ws) {
+    ws.close();
+  }
+});
 </script>
+
+<style scoped>
+/* 隐藏滚动条让界面更清爽 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #e5e7eb;
+  border-radius: 4px;
+}
+
+/* 版本水印 */
+.version-watermark {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  font-size: 10px;
+  color: #c0c0c0;
+  z-index: 9999;
+  pointer-events: none;
+}
+</style>
