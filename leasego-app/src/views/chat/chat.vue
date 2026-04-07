@@ -1,126 +1,121 @@
 <template>
   <div class="chat-container flex flex-col h-[100vh] bg-gray-100 relative">
     <!-- 版本水印 -->
-    <div class="version-watermark">v1.1.1</div>
+    <div class="version-watermark">v1.3.0</div>
+
+    <!-- 对话列表视图 -->
     <van-nav-bar title="LeaseGo 私聊" left-arrow @click-left="router.back()" />
-
-    <div class="flex flex-1 overflow-hidden relative">
-      <div
-        class="sidebar w-1/4 min-w-[140px] bg-white border-r border-gray-200 flex flex-col transition-all duration-300"
-        :class="{ 'w-0 overflow-hidden opacity-0': !showSidebar }"
-      >
+    <div v-if="!selectedUser" class="flex-1 overflow-hidden">
+      <div class="flex-1 overflow-y-auto bg-white">
         <div
-          class="p-3 bg-gray-50 text-xs font-bold text-gray-500 border-b flex justify-between items-center"
+          v-for="user in allContacts"
+          :key="user.id"
+          @click="selectUser(user.id)"
+          class="p-4 border-b cursor-pointer flex items-center gap-3"
         >
-          <span>对话列表 ({{ allContacts.length }})</span>
-          <van-icon name="arrow-left" @click="showSidebar = false" />
-        </div>
-
-        <div class="flex-1 overflow-y-auto">
-          <div
-            v-for="user in allContacts"
-            :key="user.id"
-            @click="selectUser(user.id)"
-            :class="[
-              'p-3 border-b cursor-pointer flex items-center gap-2',
-              selectedUser === user.id ? 'bg-blue-50 text-blue-600' : ''
-            ]"
-          >
+          <div class="relative">
+            <van-image
+              round
+              width="48"
+              height="48"
+              src="https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg"
+            />
             <div
               :class="[
-                'w-2 h-2 rounded-full flex-shrink-0',
+                'absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white',
                 user.online ? 'bg-green-500' : 'bg-gray-300'
               ]"
             ></div>
-            <div class="flex-1 truncate text-sm">{{ user.nickname }}</div>
+          </div>
+          <div class="flex-1 truncate">
+            <div class="text-sm font-medium">{{ user.nickname }}</div>
+            <div class="text-xs text-gray-400 truncate">{{ user.lastMessage || '暂无消息' }}</div>
+          </div>
+          <div class="text-xs text-gray-400 flex-shrink-0">
+            {{ formatTime(user.lastMessageTime) }}
           </div>
         </div>
+        <div
+          v-if="allContacts.length === 0"
+          class="flex flex-col items-center justify-center h-full text-gray-400"
+        >
+          <van-icon name="chat-o" size="48" />
+          <p class="mt-2">暂无会话</p>
+        </div>
       </div>
+    </div>
 
+    <!-- 聊天视图 -->
+    <div v-else class="flex-1 flex flex-col overflow-hidden">
+      <van-nav-bar
+        :title="contactsMap[selectedUser]?.nickname || '私聊'"
+        left-arrow
+        @click-left="goBack"
+      />
       <div
-        v-if="!showSidebar"
-        class="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white shadow p-1 rounded-r-lg"
-        @click="showSidebar = true"
+        class="chat-box flex-1 overflow-y-auto p-4 bg-gray-50"
+        ref="chatBoxRef"
       >
-        <van-icon name="arrow" color="#1989fa" />
-      </div>
-
-      <div class="flex-1 flex flex-col h-full bg-white">
-        <div v-if="selectedUser" class="flex-1 flex flex-col overflow-hidden">
-          <div
-            class="chat-box flex-1 overflow-y-auto p-4 bg-gray-50"
-            ref="chatBoxRef"
-          >
-            <div
-              v-for="(msg, index) in currentMessages"
-              :key="index"
-              class="mb-4"
-            >
-              <div v-if="!msg.fromMe" class="flex items-start">
-                <van-image
-                  round
-                  width="36"
-                  height="36"
-                  src="https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg"
-                />
-                <div class="ml-2 max-w-[75%]">
-                  <div class="text-[10px] text-gray-400 mb-1">
-                    {{ contactsMap[selectedUser]?.nickname || "对方" }}
-                  </div>
-                  <div
-                    class="bg-white p-2 rounded-lg shadow-sm text-sm break-words border border-gray-100"
-                  >
-                    {{ msg.text }}
-                  </div>
-                </div>
+        <div
+          v-for="(msg, index) in currentMessages"
+          :key="index"
+          class="mb-4"
+        >
+          <div v-if="!msg.fromMe" class="flex items-start">
+            <van-image
+              round
+              width="36"
+              height="36"
+              src="https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg"
+            />
+            <div class="ml-2 max-w-[75%]">
+              <div class="text-[10px] text-gray-400 mb-1">
+                {{ contactsMap[selectedUser]?.nickname || "对方" }}
               </div>
-              <div v-else class="flex items-start flex-row-reverse">
-                <van-image
-                  round
-                  width="36"
-                  height="36"
-                  src="https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg"
-                />
-                <div class="mr-2 max-w-[75%]">
-                  <div class="text-[10px] text-gray-400 mb-1 text-right">
-                    我
-                  </div>
-                  <div
-                    class="bg-blue-500 text-white p-2 rounded-lg shadow-sm text-sm break-words"
-                  >
-                    {{ msg.text }}
-                  </div>
-                </div>
+              <div
+                class="bg-white p-2 rounded-lg shadow-sm text-sm break-words border border-gray-100"
+              >
+                {{ msg.text }}
               </div>
             </div>
           </div>
-
-          <div class="p-2 border-t flex items-center gap-2 bg-white">
-            <van-field
-              v-model="inputText"
-              placeholder="请输入消息..."
-              class="flex-1 bg-gray-100 rounded-full px-4"
-              :border="false"
-              @keyup.enter="sendMessage"
-            />
-            <van-button
-              type="primary"
-              size="small"
+          <div v-else class="flex items-start flex-row-reverse">
+            <van-image
               round
-              class="px-4"
-              @click="sendMessage"
-              >发送</van-button
-            >
+              width="36"
+              height="36"
+              src="https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg"
+            />
+            <div class="mr-2 max-w-[75%]">
+              <div class="text-[10px] text-gray-400 mb-1 text-right">
+                我
+              </div>
+              <div
+                class="bg-blue-500 text-white p-2 rounded-lg shadow-sm text-sm break-words"
+              >
+                {{ msg.text }}
+              </div>
+            </div>
           </div>
         </div>
+      </div>
 
-        <div
-          v-else
-          class="flex-1 flex flex-center items-center justify-center text-gray-400 flex-col"
+      <div class="p-2 border-t flex items-center gap-2 bg-white">
+        <van-field
+          v-model="inputText"
+          placeholder="请输入消息..."
+          class="flex-1 bg-gray-100 rounded-full px-4"
+          :border="false"
+          @keyup.enter="sendMessage"
+        />
+        <van-button
+          type="primary"
+          size="small"
+          round
+          class="px-4"
+          @click="sendMessage"
+          >发送</van-button
         >
-          <van-icon name="chat-o" size="48" />
-          <p class="mt-2">请选择一个用户开始聊天</p>
-        </div>
       </div>
     </div>
   </div>
@@ -131,6 +126,7 @@ import { ref, onMounted, onUnmounted, nextTick, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useUserStore } from "@/store/modules/user";
 import { showToast } from "vant";
+import { getConversationList, getChatHistory } from "@/api/chat";
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -155,7 +151,6 @@ const currentUserId = computed(() => {
   return null;
 });
 
-const showSidebar = ref(true);
 const selectedUser = ref<string | null>(null);
 const inputText = ref("");
 const chatBoxRef = ref<HTMLElement | null>(null);
@@ -169,6 +164,8 @@ const contactsMap = ref<
       nickname: string;
       online: boolean;
       messages: any[];
+      lastMessage?: string;
+      lastMessageTime?: string;
     }
   >
 >({});
@@ -280,9 +277,62 @@ const initWebSocket = () => {
   };
 };
 
-const selectUser = (userId: string) => {
+const selectUser = async (userId: string) => {
   selectedUser.value = userId;
-  scrollToBottom();
+
+  // 加载与该用户的聊天历史
+  try {
+    const { data } = await getChatHistory(Number(userId));
+    if (data && data.length > 0) {
+      contactsMap.value[userId].messages = data.map(msg => ({
+        fromMe: msg.fromMe,
+        text: msg.message
+      }));
+    }
+    nextTick(() => scrollToBottom());
+  } catch (e) {
+    console.error("加载聊天记录失败", e);
+  }
+};
+
+// 返回对话列表并重新加载会话
+const goBack = async () => {
+  selectedUser.value = null;
+  await loadConversationList();
+};
+
+// 加载会话列表
+const loadConversationList = async () => {
+  try {
+    const { data } = await getConversationList();
+    // 清空并重新填充
+    Object.keys(contactsMap.value).forEach(key => {
+      contactsMap.value[key].messages = [];
+      contactsMap.value[key].lastMessage = undefined;
+      contactsMap.value[key].lastMessageTime = undefined;
+    });
+    if (data && data.length > 0) {
+      data.forEach(conv => {
+        const uid = String(conv.otherUserId);
+        if (contactsMap.value[uid]) {
+          contactsMap.value[uid].lastMessage = conv.lastMessage;
+          contactsMap.value[uid].lastMessageTime = conv.lastMessageTime;
+          contactsMap.value[uid].nickname = conv.otherUserName;
+        } else {
+          contactsMap.value[uid] = {
+            id: uid,
+            nickname: conv.otherUserName,
+            online: false,
+            messages: [],
+            lastMessage: conv.lastMessage,
+            lastMessageTime: conv.lastMessageTime
+          };
+        }
+      });
+    }
+  } catch (e) {
+    console.error("加载会话列表失败", e);
+  }
 };
 
 const sendMessage = () => {
@@ -314,7 +364,27 @@ const scrollToBottom = () => {
   });
 };
 
-onMounted(() => initWebSocket());
+// 格式化时间显示
+const formatTime = (timeStr?: string) => {
+  if (!timeStr) return "";
+  const date = new Date(timeStr);
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const oneDay = 24 * 60 * 60 * 1000;
+
+  if (diff < oneDay && date.getDate() === now.getDate()) {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } else if (diff < 2 * oneDay) {
+    return "昨天";
+  } else {
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  }
+};
+
+onMounted(async () => {
+  await loadConversationList();
+  initWebSocket();
+});
 onUnmounted(() => {
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
