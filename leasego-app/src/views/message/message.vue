@@ -46,8 +46,16 @@
           <div class="text-sm font-medium">{{ user.nickname }}</div>
           <div class="text-xs text-gray-400 truncate">{{ user.lastMessage || '暂无消息' }}</div>
         </div>
-        <div class="text-xs text-gray-400 flex-shrink-0">
-          {{ formatTime(user.lastMessageTime) }}
+        <div class="flex flex-col items-end gap-1 flex-shrink-0">
+          <div class="text-xs text-gray-400">
+            {{ formatTime(user.lastMessageTime) }}
+          </div>
+          <div
+            v-if="user.unreadCount > 0"
+            class="unread-badge"
+          >
+            {{ user.unreadCount > 99 ? '99+' : user.unreadCount }}
+          </div>
         </div>
       </div>
       <div
@@ -62,14 +70,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useUserStore } from "@/store/modules/user";
 import { showToast } from "vant";
 import { getConversationList } from "@/api/chat";
+import { useChatStore } from "@/store/modules/chat";
 
 const router = useRouter();
 const userStore = useUserStore();
+const chatStore = useChatStore();
 
 const defaultAvatar = "https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg";
 
@@ -108,6 +118,7 @@ const contactsMap = ref<
       online: boolean;
       lastMessage?: string;
       lastMessageTime?: string;
+      unreadCount: number;
     }
   >
 >({});
@@ -121,7 +132,19 @@ const allContacts = computed(() => {
   });
 });
 
+// 总未读数
+const totalUnreadCount = computed(() => {
+  return Object.values(contactsMap.value).reduce((sum, conv) => sum + (conv.unreadCount || 0), 0);
+});
+
+// 同步总未读数到 store
+watch(totalUnreadCount, (newVal) => {
+  chatStore.setTotalUnreadCount(newVal);
+});
+
 let ws: WebSocket | null = null;
+// 当前正在聊天的用户ID，用于判断是否要增加未读数
+const currentChatUserId = ref<string | null>(null);
 
 const initWebSocket = () => {
   const token = userStore.token;
@@ -149,6 +172,17 @@ const initWebSocket = () => {
             contactsMap.value[uid].online = false;
           }
         });
+      } else {
+        // 处理私聊消息，更新对话列表的最后一条消息
+        const senderId = String(data.fromId);
+        if (contactsMap.value[senderId]) {
+          contactsMap.value[senderId].lastMessage = data.message;
+          contactsMap.value[senderId].lastMessageTime = new Date().toISOString();
+          // 如果当前不在与该用户的聊天页面，未读数+1
+          if (currentChatUserId.value !== senderId) {
+            contactsMap.value[senderId].unreadCount = (contactsMap.value[senderId].unreadCount || 0) + 1;
+          }
+        }
       }
     } catch (e) {
       console.error("WS解析错误", e);
@@ -168,7 +202,8 @@ const loadConversationList = async () => {
           avatar: conv.avatarUrl || "",
           online: contactsMap.value[uid]?.online || false,
           lastMessage: conv.lastMessage,
-          lastMessageTime: conv.lastMessageTime
+          lastMessageTime: conv.lastMessageTime,
+          unreadCount: conv.unreadCount || 0
         };
       });
     }
@@ -178,8 +213,21 @@ const loadConversationList = async () => {
 };
 
 const goToChat = (user: { id: string; nickname: string; avatar?: string }) => {
+  currentChatUserId.value = user.id;
+  // 进入聊天时本地清除未读数（后端会自动标记已读）
+  if (contactsMap.value[user.id]) {
+    contactsMap.value[user.id].unreadCount = 0;
+  }
   router.push(`/chat?userId=${user.id}&nickname=${encodeURIComponent(user.nickname)}&avatar=${encodeURIComponent(user.avatar || '')}`);
 };
+
+// 监听路由返回时重新加载会话列表
+router.afterEach((to, from) => {
+  if (from.path === '/chat' && to.path === '/message') {
+    currentChatUserId.value = null;
+    loadConversationList();
+  }
+});
 
 const formatTime = (timeStr?: string) => {
   if (!timeStr) return "";
@@ -209,4 +257,18 @@ onUnmounted(() => {
 });
 </script>
 
-<style scoped></style>
+<style scoped>
+.unread-badge {
+  background-color: #f56c6c;
+  color: white;
+  border-radius: 50%;
+  padding: 2px 6px;
+  font-size: 12px;
+  min-width: 18px;
+  min-height: 18px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+</style>
