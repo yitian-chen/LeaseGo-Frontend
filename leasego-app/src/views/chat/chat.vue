@@ -25,12 +25,12 @@
             height="36"
             :src="currentContact?.avatar || defaultAvatar"
           />
-          <div class="ml-2 max-w-[75%]">
+          <div class="ml-2">
             <div class="text-[10px] text-gray-400 mb-1">
               {{ currentContact?.nickname || "对方" }}
             </div>
             <div
-              class="bg-white p-2 rounded-lg shadow-sm text-sm break-words border border-gray-100"
+              class="bg-white px-3 py-2 rounded-lg shadow-sm text-sm break-words border border-gray-100 inline-block"
             >
               {{ msg.text }}
             </div>
@@ -43,12 +43,12 @@
             height="36"
             :src="myAvatar"
           />
-          <div class="mr-2 max-w-[75%]">
+          <div class="mr-2">
             <div class="text-[10px] text-gray-400 mb-1 text-right">
               我
             </div>
             <div
-              class="bg-blue-500 text-white p-2 rounded-lg shadow-sm text-sm break-words"
+              class="bg-blue-500 text-white px-3 py-2 rounded-lg shadow-sm text-sm break-words inline-block"
             >
               {{ msg.text }}
             </div>
@@ -173,12 +173,23 @@ const sendMessage = () => {
     return;
   }
 
+  const now = new Date().toISOString();
+
   // 本地推入聊天气泡
   chatStore.addMessage(selectedUser.value, {
     fromMe: true,
     text: inputText.value,
-    time: new Date().toISOString()
+    time: now
   });
+
+  // 更新联系人的最后一条消息
+  if (chatStore.contacts[selectedUser.value]) {
+    chatStore.upsertContact({
+      ...chatStore.contacts[selectedUser.value],
+      lastMessage: inputText.value,
+      lastMessageTime: now
+    });
+  }
 
   inputText.value = "";
   scrollToBottom();
