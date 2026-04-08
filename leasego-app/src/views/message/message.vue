@@ -33,7 +33,7 @@
             round
             width="48"
             height="48"
-            src="https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg"
+            :src="user.avatar || defaultAvatar"
           />
           <div
             :class="[
@@ -71,6 +71,8 @@ import { getConversationList } from "@/api/chat";
 const router = useRouter();
 const userStore = useUserStore();
 
+const defaultAvatar = "https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg";
+
 const navList = ref([
   {
     icon: "volume-o",
@@ -102,6 +104,7 @@ const contactsMap = ref<
     {
       id: string;
       nickname: string;
+      avatar: string;
       online: boolean;
       lastMessage?: string;
       lastMessageTime?: string;
@@ -162,6 +165,7 @@ const loadConversationList = async () => {
         contactsMap.value[uid] = {
           id: uid,
           nickname: conv.otherUserName,
+          avatar: conv.avatarUrl || "",
           online: contactsMap.value[uid]?.online || false,
           lastMessage: conv.lastMessage,
           lastMessageTime: conv.lastMessageTime
@@ -173,8 +177,8 @@ const loadConversationList = async () => {
   }
 };
 
-const goToChat = (user: { id: string; nickname: string }) => {
-  router.push(`/chat?userId=${user.id}&nickname=${encodeURIComponent(user.nickname)}`);
+const goToChat = (user: { id: string; nickname: string; avatar?: string }) => {
+  router.push(`/chat?userId=${user.id}&nickname=${encodeURIComponent(user.nickname)}&avatar=${encodeURIComponent(user.avatar || '')}`);
 };
 
 const formatTime = (timeStr?: string) => {

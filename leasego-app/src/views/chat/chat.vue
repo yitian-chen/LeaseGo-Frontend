@@ -1,7 +1,7 @@
 <template>
   <div class="chat-container flex flex-col h-[100vh] bg-gray-100 relative">
     <!-- 版本水印 -->
-    <div class="version-watermark">v1.5.0</div>
+    <div class="version-watermark">v1.6.0</div>
 
     <!-- 聊天视图 -->
     <van-nav-bar
@@ -23,7 +23,7 @@
             round
             width="36"
             height="36"
-            src="https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg"
+            :src="contactsMap[selectedUser]?.avatar || defaultAvatar"
           />
           <div class="ml-2 max-w-[75%]">
             <div class="text-[10px] text-gray-400 mb-1">
@@ -41,7 +41,7 @@
             round
             width="36"
             height="36"
-            src="https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg"
+            :src="myAvatar"
           />
           <div class="mr-2 max-w-[75%]">
             <div class="text-[10px] text-gray-400 mb-1 text-right">
@@ -88,6 +88,8 @@ const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
 
+const defaultAvatar = "https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg";
+
 // ✅ 强转 any 绕过 TS 检查，获取当前用户真实 ID（不再报红）
 // 如果 userInfo.id 不可用，则从 token 解码获取
 const currentUserId = computed(() => {
@@ -110,6 +112,12 @@ const currentUserId = computed(() => {
 
 const selectedUser = ref<string | null>(null);
 const inputText = ref("");
+
+// 获取当前用户头像
+const myAvatar = computed(() => {
+  const avatar = (userStore.userInfo as any)?.avatarUrl;
+  return avatar || defaultAvatar;
+});
 const chatBoxRef = ref<HTMLElement | null>(null);
 
 // ✅ Key 统一为对方的 userId 字符串
@@ -119,6 +127,7 @@ const contactsMap = ref<
     {
       id: string;
       nickname: string;
+      avatar: string;
       messages: any[];
     }
   >
@@ -186,7 +195,7 @@ const initWebSocket = () => {
   };
 };
 
-const selectUser = async (userId: string, nickname?: string) => {
+const selectUser = async (userId: string, nickname?: string, avatar?: string) => {
   selectedUser.value = userId;
 
   // 确保联系人存在
@@ -194,6 +203,7 @@ const selectUser = async (userId: string, nickname?: string) => {
     contactsMap.value[userId] = {
       id: userId,
       nickname: nickname || "未知用户",
+      avatar: avatar || "",
       messages: []
     };
   }
@@ -257,8 +267,9 @@ onMounted(async () => {
   // 如果 URL 有 userId 参数，自动选择该用户
   const userId = route.query.userId as string;
   const nickname = route.query.nickname as string;
+  const avatar = route.query.avatar as string;
   if (userId) {
-    await selectUser(userId, nickname ? decodeURIComponent(nickname) : undefined);
+    await selectUser(userId, nickname ? decodeURIComponent(nickname) : undefined, avatar ? decodeURIComponent(avatar) : undefined);
   }
 });
 onUnmounted(() => {
