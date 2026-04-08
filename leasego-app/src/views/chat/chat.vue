@@ -210,15 +210,20 @@ const selectUser = async (userId: string, nickname?: string, avatar?: string) =>
 
   // 加载与该用户的聊天历史
   try {
-    const { data } = await getChatHistory(Number(userId));
-    if (data && data.length > 0) {
-      contactsMap.value[userId].messages = data.map(msg => ({
+    const res = await getChatHistory(Number(userId));
+    if (!res.data) return;
+
+    const { messages, userAvatars } = res.data;
+
+    if (messages && messages.length > 0) {
+      contactsMap.value[userId].messages = messages.map(msg => ({
         fromMe: msg.fromMe,
+        fromId: msg.fromId,
         text: msg.message
       }));
       // 更新昵称（如果历史记录中有）
-      if (!nickname && data[0]) {
-        contactsMap.value[userId].nickname = data[0].fromName;
+      if (!nickname && messages[0]) {
+        contactsMap.value[userId].nickname = messages[0].fromName;
       }
     }
     nextTick(() => scrollToBottom());

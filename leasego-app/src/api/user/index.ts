@@ -43,7 +43,7 @@ export function getCaptcha() {
  */
 export function updateNickname(params: UpdateNicknameInterface) {
   // 强制将参数放在 URL 查询字符串中
-  return http.post(`/app/updateNickname?nickname=${params.nickname}`);
+  return http.post(`/app/user/updateNickname?nickname=${params.nickname}`);
 }
 
 /**
