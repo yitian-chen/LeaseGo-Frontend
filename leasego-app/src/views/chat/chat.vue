@@ -5,7 +5,7 @@
 
     <!-- 聊天视图 -->
     <van-nav-bar
-      :title="contactsMap[selectedUser]?.nickname || '私聊'"
+      :title="currentContact?.nickname || '私聊'"
       left-arrow
       @click-left="goBack"
     />
@@ -23,11 +23,11 @@
             round
             width="36"
             height="36"
-            :src="contactsMap[selectedUser]?.avatar || defaultAvatar"
+            :src="currentContact?.avatar || defaultAvatar"
           />
           <div class="ml-2 max-w-[75%]">
             <div class="text-[10px] text-gray-400 mb-1">
-              {{ contactsMap[selectedUser]?.nickname || "对方" }}
+              {{ currentContact?.nickname || "对方" }}
             </div>
             <div
               class="bg-white p-2 rounded-lg shadow-sm text-sm break-words border border-gray-100"
@@ -83,20 +83,21 @@ import { useRouter, useRoute } from "vue-router";
 import { useUserStore } from "@/store/modules/user";
 import { showToast } from "vant";
 import { getChatHistory } from "@/api/chat";
+import { useChatStore } from "@/store/modules/chat";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
+const chatStore = useChatStore();
+const { sendMessage: wsSendMessage, setCurrentChatUserId } = useWebSocket();
 
 const defaultAvatar = "https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg";
 
-// ✅ 强转 any 绕过 TS 检查，获取当前用户真实 ID（不再报红）
-// 如果 userInfo.id 不可用，则从 token 解码获取
+// 获取当前用户真实 ID
 const currentUserId = computed(() => {
   const fromInfo = (userStore.userInfo as any)?.id;
   if (fromInfo) return fromInfo;
-
-  // Fallback: 从 JWT token 解码 userId
   const token = userStore.token;
   if (token) {
     try {
@@ -120,111 +121,37 @@ const myAvatar = computed(() => {
 });
 const chatBoxRef = ref<HTMLElement | null>(null);
 
-// ✅ Key 统一为对方的 userId 字符串
-const contactsMap = ref<
-  Record<
-    string,
-    {
-      id: string;
-      nickname: string;
-      avatar: string;
-      messages: any[];
-    }
-  >
->({});
-
 const currentMessages = computed(() => {
-  return selectedUser.value
-    ? contactsMap.value[selectedUser.value]?.messages || []
-    : [];
+  return selectedUser.value ? (chatStore.messages[selectedUser.value] || []) : [];
 });
 
-let ws: WebSocket | null = null;
+const currentContact = computed(() => {
+  return selectedUser.value ? chatStore.contacts[selectedUser.value] : undefined;
+});
 
-const initWebSocket = () => {
-  const token = userStore.token;
-  if (!token) {
-    showToast("未获取到登录信息");
-    return;
-  }
-
-  // 如果已有连接，先关闭
-  if (ws) {
-    ws.close();
-  }
-
-  // 后端可从 token 解析用户身份，不需要额外传 userId
-  const wsUrl = `ws://localhost:8081/app/chat?token=${token}`;
-  ws = new WebSocket(wsUrl);
-
-  ws.onmessage = event => {
-    try {
-      const data = JSON.parse(event.data);
-
-      // 忽略系统消息，只处理私聊消息
-      if (data.system) return;
-
-      const senderId = String(data.fromId);
-
-      // 忽略自己发给自己的消息回传
-      if (senderId === String(currentUserId.value)) return;
-
-      // 如果是陌生人发消息，自动建档
-      if (!contactsMap.value[senderId]) {
-        contactsMap.value[senderId] = {
-          id: senderId,
-          nickname: data.fromName || "未知用户",
-          messages: []
-        };
-      }
-
-      contactsMap.value[senderId].messages.push({
-        fromMe: false,
-        text: data.message
-      });
-
-      // 只有当你正处于和他的聊天界面时，才滚动到底部
-      if (selectedUser.value === senderId) scrollToBottom();
-    } catch (e) {
-      console.error("WS解析错误", e);
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (chatBoxRef.value) {
+      chatBoxRef.value.scrollTop = chatBoxRef.value.scrollHeight;
     }
-  };
-
-  ws.onerror = () => {
-    showToast("聊天室连接异常");
-  };
+  });
 };
 
-const selectUser = async (userId: string, nickname?: string, avatar?: string) => {
-  selectedUser.value = userId;
-
-  // 确保联系人存在
-  if (!contactsMap.value[userId]) {
-    contactsMap.value[userId] = {
-      id: userId,
-      nickname: nickname || "未知用户",
-      avatar: avatar || "",
-      messages: []
-    };
-  }
-
-  // 加载与该用户的聊天历史
+const loadChatHistory = async (userId: string) => {
   try {
     const res = await getChatHistory(Number(userId));
     if (!res.data) return;
 
-    const { messages, userAvatars } = res.data;
+    const { messages } = res.data;
 
     if (messages && messages.length > 0) {
-      contactsMap.value[userId].messages = messages.map(msg => ({
+      const chatMessages = messages.map((msg: any) => ({
         fromMe: msg.fromMe,
         fromId: msg.fromId,
-        text: msg.message
+        text: msg.message,
+        time: msg.createTime
       }));
-      // 更新昵称（如果历史记录中有）
-      if (!nickname && messages[0]) {
-        contactsMap.value[userId].nickname = messages[0].fromName;
-      }
+      chatStore.setMessages(userId, chatMessages);
     }
     nextTick(() => scrollToBottom());
   } catch (e) {
@@ -238,49 +165,52 @@ const goBack = () => {
 };
 
 const sendMessage = () => {
-  if (!inputText.value.trim() || !ws || !selectedUser.value) return;
+  if (!inputText.value.trim() || !selectedUser.value) return;
 
-  // ✅ 核心修改：使用 toId 替代 toName 发给后端
-  const msgObj = {
-    toId: Number(selectedUser.value),
-    message: inputText.value
-  };
-
-  ws.send(JSON.stringify(msgObj));
+  const sent = wsSendMessage(Number(selectedUser.value), inputText.value);
+  if (!sent) {
+    showToast("发送失败，请检查网络");
+    return;
+  }
 
   // 本地推入聊天气泡
-  contactsMap.value[selectedUser.value].messages.push({
+  chatStore.addMessage(selectedUser.value, {
     fromMe: true,
-    text: inputText.value
+    text: inputText.value,
+    time: new Date().toISOString()
   });
 
   inputText.value = "";
   scrollToBottom();
 };
 
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (chatBoxRef.value) {
-      chatBoxRef.value.scrollTop = chatBoxRef.value.scrollHeight;
-    }
-  });
-};
-
 onMounted(async () => {
-  initWebSocket();
-
   // 如果 URL 有 userId 参数，自动选择该用户
   const userId = route.query.userId as string;
   const nickname = route.query.nickname as string;
   const avatar = route.query.avatar as string;
+
   if (userId) {
-    await selectUser(userId, nickname ? decodeURIComponent(nickname) : undefined, avatar ? decodeURIComponent(avatar) : undefined);
+    selectedUser.value = userId;
+    setCurrentChatUserId(userId);
+
+    // 如果还没有该联系人的信息，添加
+    if (!chatStore.contacts[userId]) {
+      chatStore.upsertContact({
+        id: userId,
+        nickname: nickname ? decodeURIComponent(nickname) : "未知用户",
+        avatar: avatar ? decodeURIComponent(avatar) : "",
+        online: false,
+        unreadCount: 0
+      });
+    }
+
+    await loadChatHistory(userId);
   }
 });
+
 onUnmounted(() => {
-  if (ws) {
-    ws.close();
-  }
+  setCurrentChatUserId(null);
 });
 </script>
 

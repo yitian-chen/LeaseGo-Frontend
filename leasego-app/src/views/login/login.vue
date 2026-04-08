@@ -136,8 +136,8 @@ const activeTab = ref("sms");
 
 // 绑定的表单数据
 const loginInfo = ref({
-  phone: "13888888888",
-  code: "1234",
+  phone: "",
+  code: "",
   password: "",
   captchaCode: "",
   captchaKey: ""

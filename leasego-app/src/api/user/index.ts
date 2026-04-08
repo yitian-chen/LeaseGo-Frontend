@@ -1,59 +1,72 @@
 import http from "@/utils/http";
-import { service } from "@/utils/http";
-import type {
-  loginQueryInterface,
-  SmsCodeQueryInterface,
-  UserInfoInterface,
-  CaptchaVo,
-  UpdateNicknameInterface
-} from "@/api/user/types";
-/**
- * @description 登录
- * @param params
- */
-export function login(params: loginQueryInterface) {
-  return http.post<string>(`/app/login`, params);
-}
+import type { loginQueryInterface, SmsCodeQueryInterface, UserInfoInterface, CaptchaVo, UpdateNicknameInterface } from "./types";
 
 /**
- * @description 获取短信验证码
- * @param params
- */
-export function getSmsCode(params: SmsCodeQueryInterface) {
-  return http.get(`/app/login/getCode`, params);
-}
-
-/**
- * @description 获取用户信息
- */
-export function getUserInfo() {
-  return http.get<UserInfoInterface>(`/app/info`);
-}
-
-/**
- * @description 获取图形验证码
+ * 获取图形验证码
  */
 export function getCaptcha() {
   return http.get<CaptchaVo>(`/app/login/captcha`);
 }
 
 /**
- * @description 修改用户昵称
- * @param params
+ * 获取短信验证码
  */
-export function updateNickname(params: UpdateNicknameInterface) {
-  // 强制将参数放在 URL 查询字符串中
-  return http.post(`/app/user/updateNickname?nickname=${params.nickname}`);
+export function getSmsCode(params: SmsCodeQueryInterface) {
+  return http.get(`/app/login/getCode`, params);
 }
 
 /**
- * @description 上传头像文件
- * @param file 图片文件
+ * 登录
+ */
+export function login(data: loginQueryInterface) {
+  return http.post<string>(`/app/login`, data);
+}
+
+/**
+ * 获取用户信息
+ */
+export function getUserInfo() {
+  return http.get<UserInfoInterface>(`/app/info`);
+}
+
+/**
+ * 修改昵称
+ */
+export function updateNickname(data: UpdateNicknameInterface) {
+  return http.post(`/app/user/updateNickname`, data);
+}
+
+/**
+ * 获取会话列表
+ */
+export function getConversationList() {
+  return http.get(`/app/chat/conversations`);
+}
+
+/**
+ * 获取与某用户的聊天记录
+ * @param userId 对方用户ID
+ */
+export function getChatHistory(userId: number) {
+  return http.get(`/app/chat/conversations/${userId}`);
+}
+
+/**
+ * 搜索用户
+ * @param keyword 搜索关键字（手机号精确匹配，昵称模糊匹配）
+ */
+export function searchUser(keyword: string) {
+  return http.get<Array<{ id: number; nickname: string; phone: string; avatarUrl: string }>>(`/app/user/search?keyword=${encodeURIComponent(keyword)}`);
+}
+
+/**
+ * 上传头像
+ * @param file 文件对象
  */
 export function uploadAvatar(file: File) {
   const formData = new FormData();
   formData.append("file", file);
-  return service.post<string>(`/app/file/upload`, formData, {
+  return http.post(`/app/oss/upload`, formData, {
     headers: {
       "Content-Type": "multipart/form-data"
     }
@@ -61,15 +74,9 @@ export function uploadAvatar(file: File) {
 }
 
 /**
- * @description 更新头像URL
- * @param url 头像URL
+ * 更新头像URL
+ * @param avatarUrl 头像URL
  */
-export function updateAvatar(url: string) {
-  const formData = new URLSearchParams();
-  formData.append("url", url);
-  return service.post(`/app/user/avatar`, formData.toString(), {
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded"
-    }
-  });
+export function updateAvatar(avatarUrl: string) {
+  return http.post(`/app/user/updateAvatar`, { avatarUrl });
 }

@@ -193,8 +193,15 @@ const logoutHandle = () => {
   router.replace("/");
 };
 
-onMounted(() => {
-  userStore.GetInfoAction();
+onMounted(async () => {
+  // 只有当用户信息为空且有 token 时才获取用户信息
+  if (!userStore.userInfo && userStore.token) {
+    try {
+      await userStore.GetInfoAction();
+    } catch (e) {
+      console.error("获取用户信息失败", e);
+    }
+  }
 });
 </script>
 

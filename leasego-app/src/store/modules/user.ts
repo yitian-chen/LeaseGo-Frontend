@@ -8,6 +8,8 @@ import type {
 import { getUserInfo, login, updateNickname } from "@/api/user";
 import { removeToken, setToken } from "@/utils/token";
 import { showSuccessToast } from "vant";
+import { useChatStore } from "@/store/modules/chat";
+import { initWebSocket, closeWebSocket } from "@/hooks/useWebSocket";
 
 export const useUserStore = defineStore({
   id: "app-user",
@@ -25,6 +27,8 @@ export const useUserStore = defineStore({
       const { data } = await login(params);
       setToken(data);
       await this.GetInfoAction();
+      // 登录成功后初始化 WebSocket 并加载会话列表
+      await this.initChatAfterLogin();
     },
     // setUserInfo
     setUserInfo(userInfo: UserInfoInterface) {
@@ -35,8 +39,41 @@ export const useUserStore = defineStore({
       // 存储用户信息
       this.setUserInfo(data);
     },
+    async initChatAfterLogin() {
+      // 动态导入避免循环依赖
+      const { getConversationList } = await import("@/api/chat");
+
+      // 先加载会话列表，确保联系人已添加到 store
+      try {
+        const res = await getConversationList();
+        const chatStore = useChatStore();
+        if (res.data && res.data.length > 0) {
+          const map: Record<string, any> = {};
+          res.data.forEach((conv: any) => {
+            const uid = String(conv.otherUserId);
+            map[uid] = {
+              id: uid,
+              nickname: conv.otherUserName,
+              avatar: conv.avatarUrl || "",
+              online: false,
+              lastMessage: conv.lastMessage,
+              lastMessageTime: conv.lastMessageTime,
+              unreadCount: conv.unreadCount || 0
+            };
+          });
+          chatStore.setContacts(map);
+        }
+      } catch (e) {
+        console.error("加载会话列表失败", e);
+      }
+
+      // 再初始化 WebSocket，确保联系人已存在以便更新在线状态
+      initWebSocket();
+    },
     async Logout() {
-      // await logout()
+      closeWebSocket();
+      const chatStore = useChatStore();
+      chatStore.$reset();
       this.resetUserStore();
       removeToken();
     },

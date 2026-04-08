@@ -93,6 +93,15 @@ const routes: Array<RouteRecordRaw> = [
     meta: {
       title: "公共聊天室"
     }
+  },
+  {
+    path: "/searchUser",
+    name: "SearchUser",
+    component: () => import("@/views/searchUser/searchUser.vue"),
+    meta: {
+      title: "搜索用户",
+      noCache: true
+    }
   }
 ];
 
