@@ -91,6 +91,14 @@ export interface TreeData {
   parentId?: number | string
   children?: TreeData[]
 }
+// 房东信息
+export interface LandlordInfoInterface {
+  id: number | string
+  phone: string
+  nickname: string
+  avatarUrl: string
+  status?: string
+}
 //#endregion
 //#region <房间>
 // 房间请求参数
@@ -113,6 +121,12 @@ export interface RoomInterface {
   isRelease: string | number
   leaseEndDate: string
   isCheckIn: boolean
+  // 房东ID
+  landlordId?: number | string
+  // 房东昵称
+  landlordNickname?: string
+  // 房东信息
+  landlordInfo?: LandlordInfoInterface
   apartmentInfo: Omit<ApartmentInterface, 'totalRoomCount' | 'freeRoomCount'>
   // 	属性信息列表
   attrValueVoList?: any[]
@@ -139,6 +153,8 @@ export interface SaveRoomInterface {
   rent: number | string
   apartmentId: number | string
   isRelease: string | number
+  // 房东ID
+  landlordId?: number | string
   // 	属性信息列表
   attrValueIds: number[]
   // 	配套id

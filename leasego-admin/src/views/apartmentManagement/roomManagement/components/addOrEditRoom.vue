@@ -104,6 +104,20 @@
           </el-radio>
         </el-radio-group>
       </el-form-item>
+      <el-form-item label="房东" prop="landlordId">
+        <el-select
+          v-model="formData.landlordId"
+          placeholder="请选择房东"
+          clearable
+        >
+          <el-option
+            v-for="item in landlordList"
+            :key="item.id"
+            :label="item.nickname"
+            :value="item.id"
+          ></el-option>
+        </el-select>
+      </el-form-item>
       <el-form-item label="房间属性" prop="attrValueIds">
         <el-tree-select
           style="width: 100%"
@@ -207,6 +221,7 @@ import {
   ApartmentInterface,
   FacilityInfoInterface,
   LabelInfoInterface,
+  LandlordInfoInterface,
   PaymentInfoInterface,
   RegionInterface,
   SaveRoomInterface,
@@ -224,6 +239,7 @@ import {
   getProvinceList,
   getRoomById,
   getTermList,
+  listLandlords,
   saveOrUpdateRoom,
 } from '@/api/apartmentManagement'
 import { UploadFile } from 'element-plus/es/components/upload/src/upload'
@@ -432,6 +448,8 @@ const attrInfoList = ref<TreeData[]>([])
 const paymentInfoList = ref<PaymentInfoInterface[]>([])
 // 可选租期信息
 const leaseTermInfoList = ref<TermInfoInterface[]>([])
+// 房东列表
+const landlordList = ref<LandlordInfoInterface[]>([])
 // 配套信息树实例
 // const attrTreeSelectRef = ref<InstanceType<typeof ElTree>>()
 // 获取配套信息
@@ -487,6 +505,15 @@ async function getLeaseTermInfoListHandle() {
   try {
     const { data } = await getTermList()
     leaseTermInfoList.value = data
+  } catch (error) {
+    console.log(error)
+  }
+}
+// 获取房东列表
+async function getLandlordListHandle() {
+  try {
+    const { data } = await listLandlords()
+    landlordList.value = data
   } catch (error) {
     console.log(error)
   }
@@ -549,6 +576,8 @@ async function getRoomInfoByIdHandle(id: number | string) {
     formData.value.leaseTermIds =
       (data.leaseTermList?.map((item) => item.id) as number[]) || []
     delete data.leaseTermList
+    // 房东id
+    formData.value.landlordId = data.landlordInfo?.id
     // 重置省市区
     // 获取城市
     areaInfo.provinceId = data.apartmentInfo.provinceId as string
@@ -601,6 +630,8 @@ onMounted(() => {
   getPaymentInfoListHandle()
   // 获取可选租期信息列表
   getLeaseTermInfoListHandle()
+  // 获取房东列表
+  getLandlordListHandle()
   if (route.query?.id) {
     getRoomInfoByIdHandle(route.query.id as string)
   }

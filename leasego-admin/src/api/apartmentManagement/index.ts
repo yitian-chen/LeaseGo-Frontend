@@ -8,6 +8,7 @@ import {
   FeeInfoInterface,
   FeeValueInfoInterface,
   LabelInfoInterface,
+  LandlordInfoInterface,
   PaymentInfoInterface,
   RegionInterface,
   RoomInterface,
@@ -172,6 +173,21 @@ export function getRoomById(id: number | string) {
  */
 export function saveOrUpdateRoom(params: SaveRoomInterface) {
   return http.post(`/admin/room/saveOrUpdate`, params)
+}
+/**
+ * @description 获取房东列表
+ */
+export function listLandlords() {
+  return http.get<LandlordInfoInterface[]>(`/admin/room/listLandlords`)
+}
+/**
+ * @description 根据房间ID获取房东信息
+ * @param roomId
+ */
+export function getLandlordByRoomId(roomId: number | string) {
+  return http.get<LandlordInfoInterface>(
+    `/admin/room/getLandlordByRoomId?id=${roomId}`,
+  )
 }
 /**
  * @description 查询属性信息列表

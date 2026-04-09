@@ -197,6 +197,7 @@ const columns: ColumnProps[] = [
   { prop: 'apartmentInfo.cityName', label: '所处城市' },
   { prop: 'apartmentInfo.districtName', label: '所处区域' },
   { prop: 'apartmentInfo.name', label: '所处公寓' },
+  { prop: 'landlordNickname', label: '房东' },
   {
     prop: 'isCheckIn',
     label: '入住状态',
