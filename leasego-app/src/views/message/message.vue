@@ -37,7 +37,7 @@
             round
             width="48"
             height="48"
-            :src="user.avatar || defaultAvatar"
+            :src="getAvatarUrl(user.avatar) || defaultAvatar"
           />
           <div
             :class="[
@@ -79,6 +79,7 @@ import { useRouter } from "vue-router";
 import { getConversationList } from "@/api/chat";
 import { useChatStore } from "@/store/modules/chat";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { getAvatarUrl } from "@/utils/avatar";
 
 const router = useRouter();
 const chatStore = useChatStore();

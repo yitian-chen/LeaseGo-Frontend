@@ -6,7 +6,7 @@
         round
         width="30vw"
         height="30vw"
-        :src="userStore.userInfo?.avatarUrl || defaultAvatarUrl"
+        :src="getAvatarUrl(userStore.userInfo?.avatarUrl) || defaultAvatarUrl"
       >
         <template v-slot:error>加载失败</template>
       </van-image>
@@ -70,6 +70,7 @@ import defaultAvatarUrl from "../../../public/favicon.ico";
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { uploadAvatar, updateAvatar } from "@/api/user";
+import { getAvatarUrl } from "@/utils/avatar";
 
 const router = useRouter();
 const navList = ref([
@@ -107,7 +108,7 @@ const triggerAvatarUpload = () => {
 // 预览头像
 const previewAvatar = () => {
   showImagePreview([
-    userStore.userInfo?.avatarUrl || defaultAvatarUrl
+    getAvatarUrl(userStore.userInfo?.avatarUrl) || defaultAvatarUrl
   ]);
 };
 

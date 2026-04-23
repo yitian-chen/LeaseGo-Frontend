@@ -23,7 +23,7 @@
             round
             width="36"
             height="36"
-            :src="currentContact?.avatar || defaultAvatar"
+            :src="getAvatarUrl(currentContact?.avatar) || defaultAvatar"
           />
           <div class="ml-2">
             <div class="text-[10px] text-gray-400 mb-1">
@@ -85,6 +85,7 @@ import { showToast } from "vant";
 import { getChatHistory } from "@/api/chat";
 import { useChatStore } from "@/store/modules/chat";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { getAvatarUrl } from "@/utils/avatar";
 
 const router = useRouter();
 const route = useRoute();
@@ -117,7 +118,7 @@ const inputText = ref("");
 // 获取当前用户头像
 const myAvatar = computed(() => {
   const avatar = (userStore.userInfo as any)?.avatarUrl;
-  return avatar || defaultAvatar;
+  return avatar ? getAvatarUrl(avatar) : defaultAvatar;
 });
 const chatBoxRef = ref<HTMLElement | null>(null);
 

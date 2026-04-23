@@ -29,7 +29,7 @@
           round
           width="48"
           height="48"
-          :src="user.avatarUrl || defaultAvatar"
+          :src="getAvatarUrl(user.avatarUrl) || defaultAvatar"
         />
         <div class="flex-1">
           <div class="text-sm font-medium">{{ user.nickname }}</div>
@@ -61,6 +61,7 @@ import { useRouter } from "vue-router";
 import { searchUser } from "@/api/user";
 import { useChatStore } from "@/store/modules/chat";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { getAvatarUrl } from "@/utils/avatar";
 
 const router = useRouter();
 const chatStore = useChatStore();

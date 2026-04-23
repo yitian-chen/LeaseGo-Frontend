@@ -191,10 +191,55 @@
       </div>
       <!--    预约看房-->
       <van-sticky :offset-bottom="0" position="bottom">
-        <van-button type="primary" block @click="appointmentToViewHandle"
-          >预约看房</van-button
-        >
+        <div class="flex gap-2 p-2 bg-white">
+          <van-button
+            v-if="roomDetailInfo.landlordInfo"
+            type="primary"
+            plain
+            block
+            @click="showContactLandlord"
+            >联系房东</van-button
+          >
+          <van-button type="primary" block @click="appointmentToViewHandle"
+            >预约看房</van-button
+          >
+        </div>
       </van-sticky>
+
+      <!-- 联系房东弹窗 -->
+      <van-dialog
+        v-model:show="showLandlordDialog"
+        title="联系房东"
+        show-cancel-button
+        :cancel-button-text="''"
+        :confirm-button-text="''"
+        close-on-click-overlay
+      >
+        <div v-if="roomDetailInfo.landlordInfo" class="p-4">
+          <div class="flex flex-col items-center">
+            <van-image
+              round
+              width="60"
+              height="60"
+              :src="getAvatarUrl(roomDetailInfo.landlordInfo.avatarUrl) || defaultAvatar"
+            />
+            <div class="mt-2 font-medium">
+              {{ roomDetailInfo.landlordInfo.nickname }}
+            </div>
+            <div class="text-gray-500 text-sm">
+              {{ roomDetailInfo.landlordInfo.phone }}
+            </div>
+          </div>
+          <div class="flex gap-4 mt-4 justify-center">
+            <van-button type="primary" size="small" @click="callLandlord">
+              拨打电话
+            </van-button>
+            <van-button type="primary" size="small" plain @click="chatWithLandlord">
+              平台聊天
+            </van-button>
+          </div>
+        </div>
+      </van-dialog>
     </div>
   </van-skeleton>
 </template>
@@ -206,14 +251,70 @@ import { useMap } from "@/hooks/useMap";
 import poiMarkerRed from "@/assets/poi-marker-red.png";
 import ApartmentCard from "@/components/ApartmentCard/ApartmentCard.vue";
 import { useRouter, useRoute } from "vue-router";
+import { showToast } from "vant";
+import { useChatStore } from "@/store/modules/chat";
+import { addContact } from "@/hooks/useWebSocket";
+import { getAvatarUrl } from "@/utils/avatar";
+
 const router = useRouter();
 const route = useRoute();
+const chatStore = useChatStore();
+
+const defaultAvatar = "https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg";
+
 // 房间的详情信息
 const roomDetailInfo = ref<RoomDetailInterface>({} as RoomDetailInterface);
+
+// 联系房东弹窗
+const showLandlordDialog = ref(false);
+
 // 获取房间的详情信息
 const getRoomDetailHandle = async () => {
   const { data } = await getRoomDetailById(route.query.id as string);
   roomDetailInfo.value = data;
+};
+
+// 联系房东
+const showContactLandlord = () => {
+  showLandlordDialog.value = true;
+};
+
+// 拨打电话
+const callLandlord = () => {
+  if (roomDetailInfo.value.landlordInfo?.phone) {
+    window.location.href = `tel:${roomDetailInfo.value.landlordInfo.phone}`;
+  }
+};
+
+// 平台聊天
+const chatWithLandlord = () => {
+  const landlord = roomDetailInfo.value.landlordInfo;
+  if (!landlord) return;
+
+  // 添加到联系人
+  addContact({
+    id: String(landlord.userId),
+    nickname: landlord.nickname,
+    avatar: landlord.avatarUrl
+  });
+
+  // 确保联系人信息在 store 中更新
+  if (!chatStore.contacts[String(landlord.userId)]) {
+    chatStore.upsertContact({
+      id: String(landlord.userId),
+      nickname: landlord.nickname,
+      avatar: landlord.avatarUrl || "",
+      online: false,
+      unreadCount: 0
+    });
+  }
+
+  // 跳转到聊天页面
+  router.push(
+    `/chat?userId=${landlord.userId}&nickname=${encodeURIComponent(landlord.nickname)}&avatar=${encodeURIComponent(landlord.avatarUrl || '')}`
+  );
+
+  showLandlordDialog.value = false;
 };
 //#region <高德地图相关>
 // 地图实例
