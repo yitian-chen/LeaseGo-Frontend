@@ -25,7 +25,7 @@ export const initWebSocket = () => {
     ws.close();
   }
 
-  const wsUrl = `ws://localhost:8081/app/chat?token=${token}`;
+  const wsUrl = `ws://localhost:8082/app/chat?token=${token}`;
   ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
