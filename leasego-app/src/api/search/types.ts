@@ -141,7 +141,18 @@ export interface RoomDetailInterface {
     url: string;
     name: number;
   }[];
+  // 房东信息
+  landlordInfo?: LandlordInfoInterface;
 }
+
+// 房东信息
+export interface LandlordInfoInterface {
+  userId: number;
+  phone: string;
+  nickname: string;
+  avatarUrl?: string;
+}
+
 // 杂费值信息
 export interface FeeInfoInterface {
   id: number | string;

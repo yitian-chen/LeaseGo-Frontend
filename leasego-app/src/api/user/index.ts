@@ -66,7 +66,7 @@ export function searchUser(keyword: string) {
 export function uploadAvatar(file: File) {
   const formData = new FormData();
   formData.append("file", file);
-  return http.post(`/app/oss/upload`, formData, {
+  return http.post(`/app/file/upload`, formData, {
     headers: {
       "Content-Type": "multipart/form-data"
     }
@@ -77,6 +77,6 @@ export function uploadAvatar(file: File) {
  * 更新头像URL
  * @param avatarUrl 头像URL
  */
-export function updateAvatar(avatarUrl: string) {
-  return http.post(`/app/user/updateAvatar`, { avatarUrl });
+export function updateAvatar(url: string) {
+  return http.post(`/app/user/avatar`, { url });
 }
